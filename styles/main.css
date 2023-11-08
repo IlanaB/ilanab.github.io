@@ -1,0 +1,101 @@
+@import url('https://fonts.googleapis.com/css?family=Indie+Flower|Merriweather');
+
+html {
+	height: 100%;
+}
+
+body {
+	background-color: #f9f9f9;
+	color: #3F4845;
+	font-family: Merriweather, "Times New Roman";
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	padding: 0;
+
+	background-image: url(../images/toronto.svg);
+	background-size: contain;
+	background-position: 0 100%;
+	background-repeat: no-repeat;
+}
+
+.content-container {
+	max-width: 900px;
+	margin: 0 auto;
+}
+
+h1 {
+	padding: 20px 20px 0 20px;
+	font-family: "Indie Flower", Arial;
+	font-size: 2.5em;
+	margin: 0;
+}
+
+p {
+	padding: 20px;
+	line-height: 2.5;
+}
+
+.btn-interactive {
+	position: relative;
+	display: inline-block;
+	cursor: pointer
+}
+
+.btn-interactive--1{
+	padding: 0 5px;
+	background-color: #E6E6E6;
+	border: 1px solid #CACACA;
+}
+
+.btn-interactive--1:after{
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	border: 1px solid #516B64;
+	display: block;
+	content: "";
+	left: -1px;
+	top: -1px;
+	opacity: 0;
+	-webkit-transform: scale(1.5) translateY(0);
+	        transform: scale(1.5) translateY(0);
+	-webkit-transition: opacity 0.2s ease, -webkit-transform 0.2s ease;
+	transition: opacity 0.2s ease, -webkit-transform 0.2s ease;
+	transition: transform 0.2s ease, opacity 0.2s ease;
+	transition: transform 0.2s ease, opacity 0.2s ease, -webkit-transform 0.2s ease;
+}
+
+.btn-interactive--1:hover:after{
+	-webkit-transform: scale(1) translateY(0);
+	        transform: scale(1) translateY(0);
+	opacity: 1;
+}
+
+#confetti-container {
+	width: 100%;
+	height: 100%;
+	position: absolute;
+	overflow: hidden;
+}
+
+.confetti {
+	position: absolute;
+	-webkit-transition-property: -webkit-transform;
+	transition-property: -webkit-transform;
+	transition-property: transform;
+	transition-property: transform, -webkit-transform;
+	-webkit-transition-timing-function: linear;
+	        transition-timing-function: linear;
+}
+
+@media (min-width: 800px) {
+	p {
+		padding: 50px;
+	}
+
+	h1 {
+		font-size: 3em;
+		padding: 50px 50px 0 50px;
+	}
+}
