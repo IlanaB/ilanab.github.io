@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex">
+<meta charset="UTF-8">
+<title>Guess Who Custom Card Creator</title>
+<style>
+  @page { size: 216mm 279mm; margin: 10mm; }
+
+  body { font-family: Arial, sans-serif; margin: 0; padding: 10mm; }
+
+  /* Simple print rules - hide form only */
+  @media print {
+    form, h1, p, ol, .instructions { display: none !important; }
+  }
+
+  .preview-section { margin-top: 5mm; }
+
+  .preview-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .preview-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 150px;
+    border: 1px solid #ccc;
+    padding: 5px;
+    border-radius: 2px;
+    font-size: 11px;
+  }
+
+  .preview-item .preview-wrapper {
+    width: 80px;
+    height: 60px;
+    margin-bottom: 5px;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  .image-controls {
+    display: none;
+  }
+
+  .show-controls .image-controls {
+    display: block;
+  }
+
+  .preview-item input[type="text"] {
+    width: 100%;
+    text-align: center;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+
+  .preview-item input[type="range"] {
+    width: 100%;
+  }
+
+  .preview-item button {
+    font-size: 11px;
+    padding: 2px 4px;
+    cursor: pointer;
+  }
+
+  .controls { margin-bottom: 10px; }
+
+  .card-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4mm;
+    page-break-inside: avoid;
+  }
+
+  .card {
+    box-sizing: border-box;
+    border-radius: 0.5mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+    page-break-inside: avoid;
+  }
+
+  .small-card {
+    width: 32mm;
+    height: 36mm;
+    padding: 2mm 3mm 4mm 3mm;
+  }
+  .small-card .photo {
+    width: 25mm;
+    height: 20mm;
+    margin-bottom: 1.5mm;
+    position: relative;
+    overflow: hidden;
+  }
+  .small-card .name-slot {
+    width: 25mm;
+    height: 7mm;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+
+  .blue-bg { background-color: #007BFF; }
+  .red-bg { background-color: #FF3B3B; }
+
+  .large-card {
+    width: 45mm;
+    height: 76mm;
+    padding: 6.5mm;
+    background-color: #FFD700;
+  }
+  .large-card .photo {
+    width: 32mm;
+    height: 41mm;
+    margin-bottom: 8mm;
+    position: relative;
+    overflow: hidden;
+  }
+  .large-card .name-slot {
+    width: 45mm;
+    height: 15mm;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+</style>
+</head>
+<body>
+<h1>Custom Guess Who Card Generator</h1>
+<p class="instructions">
+  This creates a printable template of custom cards for the newer Guess Who board (NOT the stand up, travel, or extra versions).
+  <ol>
+
+<li>Upload up to 24 photos.</li> 
+<li>Adjust zoom and position for each thumbnail.</li>
+<li>Add names.</li>  
+<li>Click "Generate Cards" and print at 100% scale (enable "Background graphics" in Chrome).</li>
+  </ol>
+</p>
+
+<form id="cardForm">
+  <div class="controls">
+    <input type="file" id="photoInput" accept="image/*" multiple>
+    <label><input type="checkbox" id="toggleControl" /> Adjust image zoom/position</label>
+    <button type="button" id="clearAllBtn">Reset All</button>
+  </div>
+
+  <div id="previewGrid" class="preview-grid"></div>
+  <button type="button" onclick="generateCards()">Generate Cards</button>
+</form>
+
+<div class="preview-section">
+  <h2>Player 1</h2>
+  <div id="blueCards" class="card-grid"></div>
+
+  <h2>Player 2</h2>
+  <div id="redCards" class="card-grid"></div>
+
+  <h2>Character Selection</h2>
+  <div id="largeCards" class="card-grid"></div>
+</div>
+
+<script>
+const photoInput = document.getElementById("photoInput");
+const previewGrid = document.getElementById("previewGrid");
+const clearAllBtn = document.getElementById("clearAllBtn");
+const toggleControl = document.getElementById("toggleControl");
+let photoList = [];
+let db = null;
+
+async function initDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("NameCardsDB", 1);
+    
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      db = request.result;
+      resolve(db);
+    };
+    
+    request.onupgradeneeded = (e) => {
+      db = e.target.result;
+      if (db.objectStoreNames.contains("photos")) {
+        e.target.transaction.abort();
+        return;
+      }
+      const store = db.createObjectStore("photos", { autoIncrement: true });
+    };
+  });
+}
+
+async function savePhotoList() {
+  if (!db) return;
+  try {
+    const tx = db.transaction("photos", "readwrite");
+    const store = tx.objectStore("photos");
+    
+    await new Promise(resolve => store.clear().onsuccess = resolve);
+    
+    for (let i = 0; i < photoList.length; i++) {
+      const item = photoList[i];
+      await new Promise(resolve => {
+        const req = store.put({ 
+          index: i, 
+          fileName: item.fileName,
+          src: item.src,
+          name: item.name || "",
+          zoom: item.zoom || 1.2,
+          offsetX: item.offsetX || 0,
+          offsetY: item.offsetY || 0 
+        });
+        req.onsuccess = () => resolve(null);
+        req.onerror = () => resolve(null);
+      });
+    }
+  } catch (e) {
+    console.warn("Save failed:", e);
+  }
+}
+
+async function loadPhotoList() {
+  if (!db) return [];
+  try {
+    const tx = db.transaction("photos", "readonly");
+    const store = tx.objectStore("photos");
+    return new Promise((resolve) => {
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const loaded = request.result.map(item => ({
+          id: item.id,
+          fileName: item.fileName || "",
+          src: item.src,
+          name: item.name || "",
+          zoom: item.zoom || 1.2,
+          offsetX: item.offsetX || 0,
+          offsetY: item.offsetY || 0
+        })).sort((a, b) => (a.id || 0) - (b.id || 0));
+        photoList = loaded;
+        resolve(loaded);
+      };
+    });
+  } catch (e) {
+    console.warn("Load failed:", e);
+    return [];
+  }
+}
+
+window.addEventListener("DOMContentLoaded", async () => {
+  try {
+    await initDB();
+    await loadPhotoList();
+    updatePreviewGrid();
+  } catch (e) {
+    console.warn("IndexedDB unavailable:", e);
+  }
+});
+
+photoInput.addEventListener("change", () => {
+  const newFiles = Array.from(photoInput.files);
+  const remainingSlots = 24 - photoList.length;
+  const filesToAdd = newFiles.slice(0, remainingSlots);
+
+  filesToAdd.forEach((file) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      photoList.push({
+        fileName: file.name,
+        src: e.target.result,
+        name: "",
+        zoom: 1.2,
+        offsetX: 0,
+        offsetY: 0
+      });
+      updatePreviewGrid();
+      await savePhotoList();
+    };
+    reader.readAsDataURL(file);
+  });
+  photoInput.value = "";
+});
+
+function buildBackgroundStyle(item) {
+  const zoom = Math.max(0.5, Math.min(2.5, (typeof item.zoom === "number" && !isNaN(item.zoom)) ? item.zoom : 1.2));
+  const x = Math.max(-50, Math.min(50, (typeof item.offsetX === "number" && !isNaN(item.offsetX)) ? item.offsetX : 0));
+  const y = Math.max(-50, Math.min(50, (typeof item.offsetY === "number" && !isNaN(item.offsetY)) ? item.offsetY : 0));
+  
+  const bgSize = `${zoom * 100}%`;
+  const bgPos = `${50 + x}% ${50 + y}%`;
+  
+  return `background-image: url(${item.src}); background-size: ${bgSize}; background-position: ${bgPos}; background-repeat: no-repeat; -webkit-print-color-adjust: exact;`;
+}
+
+function updatePreviewGrid() {
+  previewGrid.innerHTML = "";
+  photoList.forEach((item, i) => {
+    const div = document.createElement("div");
+    div.className = "preview-item";
+    const bgStyle = buildBackgroundStyle(item);
+
+    div.innerHTML = `
+      <div class="preview-wrapper" style="${bgStyle}"></div>
+      <input type="text" placeholder="Photo ${i + 1}" value="${item.name || ''}" oninput="updateName(${i}, this.value)" />
+      <div class="image-controls">
+        <label>Zoom</label>
+        <input type="range" min="0.5" max="2.5" step="0.01" value="${item.zoom || 1.2}" oninput="updateZoom(${i}, this.value)" />
+        <label>X</label>
+        <input type="range" min="-50" max="50" step="1" value="${item.offsetX || 0}" oninput="updateOffsetX(${i}, this.value)" />
+        <label>Y</label>
+        <input type="range" min="-50" max="50" step="1" value="${item.offsetY || 0}" oninput="updateOffsetY(${i}, this.value)" />
+      </div>
+      <button type="button" onclick="removePhoto(${i})">Remove</button>
+    `;
+    previewGrid.appendChild(div);
+  });
+}
+
+function updateName(i, val) {
+  photoList[i].name = val;
+  savePhotoList();
+}
+
+function updateZoom(i, val) {
+  const n = parseFloat(val);
+  photoList[i].zoom = !isNaN(n) ? n : 1.2;
+  updatePreviewGrid();
+  savePhotoList();
+}
+
+function updateOffsetX(i, val) {
+  const n = parseInt(val, 10);
+  photoList[i].offsetX = !isNaN(n) ? n : 0;
+  updatePreviewGrid();
+  savePhotoList();
+}
+
+function updateOffsetY(i, val) {
+  const n = parseInt(val, 10);
+  photoList[i].offsetY = !isNaN(n) ? n : 0;
+  updatePreviewGrid();
+  savePhotoList();
+}
+
+function removePhoto(i) {
+  photoList.splice(i, 1);
+  updatePreviewGrid();
+  savePhotoList();
+}
+
+clearAllBtn.addEventListener("click", async () => {
+  if (confirm("Clear all saved photos and names?")) {
+    photoList = [];
+    if (db) {
+      try {
+        const tx = db.transaction("photos", "readwrite");
+        await new Promise(resolve => {
+          tx.objectStore("photos").clear().onsuccess = resolve;
+        });
+      } catch (e) {}
+    }
+    updatePreviewGrid();
+  }
+});
+
+toggleControl.addEventListener("change", () => {
+  previewGrid.classList.toggle('show-controls', toggleControl.checked);
+});
+
+function generateCards() {
+  const blueContainer = document.getElementById("blueCards");
+  const redContainer = document.getElementById("redCards");
+  const largeContainer = document.getElementById("largeCards");
+  blueContainer.innerHTML = "";
+  redContainer.innerHTML = "";
+  largeContainer.innerHTML = "";
+
+  photoList.forEach((item) => {
+    const { name } = item;
+    const bgStyle = buildBackgroundStyle(item);
+
+    const blueCard = document.createElement("div");
+    blueCard.className = "card small-card blue-bg";
+    blueCard.innerHTML = `
+      <div class="photo" style="${bgStyle}"></div>
+      <div class="name-slot">${name}</div>
+    `;
+    blueContainer.appendChild(blueCard);
+
+    const redCard = document.createElement("div");
+    redCard.className = "card small-card red-bg";
+    redCard.innerHTML = `
+      <div class="photo" style="${bgStyle}"></div>
+      <div class="name-slot">${name}</div>
+    `;
+    redContainer.appendChild(redCard);
+
+    const yellowCard = document.createElement("div");
+    yellowCard.className = "card large-card";
+    yellowCard.innerHTML = `
+      <div class="photo" style="${bgStyle}"></div>
+      <div class="name-slot">${name}</div>
+    `;
+    largeContainer.appendChild(yellowCard);
+  });
+}
+</script>
+</body>
+</html>
